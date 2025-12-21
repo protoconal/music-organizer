@@ -1,0 +1,9 @@
+{
+  "input": "\\\\192.168.0.220\\plex-audio-share\\EDrive\\FLACs\\songs to shuffle bop to",
+  "output": "\\\\192.168.0.220\\plex-audio-share\\EDrive\\FLACs\\fullsync_songs_to_shuffle_bop_to",
+  "hash_length": 4,
+  "dry_run": false,
+  "verbosity": 1,
+  "log_file": "./full_copy_sync.log",
+  "keep_empty_directories": false
+}
