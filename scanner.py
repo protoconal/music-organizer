@@ -1,7 +1,7 @@
 import logging
 import os
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict, Tuple, List
 
 from file_sync.HashCache import HashCache
 from file_sync.track import Track
@@ -119,6 +119,40 @@ def build_required_output_maps(output_dir: Path, hash_cache: HashCache) -> \
                 logger.warning("| ----- --------------- ----- |")
                 continue
             audio_signature_map[tr.audio_md5_signature] = (p, tr)
+        except Exception as e:
+            logger.error(f"Error processing input file {p}: {e}")
+
+    return audio_signature_map
+
+
+def duplicate_enabled_build_required_output_maps(output_dir: Path, hash_cache: HashCache):
+    """
+        Return the required maps...
+        - audio_signature_map: audio_signature -> expected_path_map
+        - expected_path_map: list[(origin_path, Track)]
+        :param output_dir:
+        :type hash_cache: HashCache
+    """
+    table = "out_cache"
+    audio_signature_map: Dict[str, List[Tuple[Path, Track]]] = {}
+    output_paths = scan_input_dir(output_dir)
+
+    it = tqdm(output_paths, desc="Scanning output metadata", unit="file") if TQDM_AVAILABLE else output_paths
+    for p in it:
+        try:
+            # track should always update the cache...
+            tr = Track.from_file(p, hash_cache, table)
+            # map md5 audio hash to path and object
+            if tr.audio_md5_signature not in audio_signature_map:
+                audio_signature_map[tr.audio_md5_signature] = []
+            else:
+                logger.warning("| ----- --------------- ----- |")
+                logger.warning(
+                    f"Output audio signature map {tr.audio_md5_signature} already exists; collision !!!")
+                logger.warning(f"Current file: {tr.src_path}")
+                logger.warning(f"Existing file: {audio_signature_map[tr.audio_md5_signature]}")
+                logger.warning("| ----- --------------- ----- |")
+            audio_signature_map[tr.audio_md5_signature].append((p, tr))
         except Exception as e:
             logger.error(f"Error processing input file {p}: {e}")
 

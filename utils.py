@@ -12,10 +12,12 @@ import tempfile
 from pathlib import Path
 from typing import Optional, Dict
 
+import unicodedata
+
 # ---------- UTILITIES ----------
 
 # ---------- constants ----------
-INVALID_PATH_CHARS = r'\/:*?"<>|.'
+INVALID_PATH_CHARS = r'\/:*?"<>|.()'
 
 # -------- logging utils --------
 logger = logging.getLogger("music_copysync")
@@ -115,10 +117,12 @@ def _select_hashing_algo(algo: str):
     return h
 
 
-def sanitize_for_path(s: str, max_len: int = 100) -> str:
+def sanitize_for_path(s: str, max_len: int = 32) -> str:
     # GPT-generated
     s = "".join(ch for ch in s if ch not in INVALID_PATH_CHARS)
     s = re.sub(r"\s{2,}", " ", s).strip()
+    # normalize text
+    s = unicodedata.normalize('NFKD', s).encode('ascii', 'ignore').decode('ascii')
     if len(s) > max_len:
         s = s[:max_len]
     # logger.debug(f"sanitized path str: {s}")

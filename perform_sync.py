@@ -74,6 +74,10 @@ def perform_sync(
     output_audio_signature_map = build_required_output_maps(output_dir, hash_cache)
     stats["total_out_found"] = len(output_audio_signature_map)
 
+    # 0. Delete any duplicates...
+
+
+
     # 1. Determine movable files...
     move_tasks, skippable_destination_paths = determine_move_tasks(
         output_dir, input_audio_signature_map, output_audio_signature_map)
@@ -106,18 +110,36 @@ def perform_sync(
     it = tqdm(items, desc="Determining required copies...", unit="file") if TQDM_AVAILABLE else items
 
     for dst, (src, src_tr) in it:
-        dst_tr = output_audio_signature_map[src_tr.audio_md5_signature]
-        if dst.exists() and \
-                dst.is_file() and \
-                dst == src_tr.expected_output_path() and \
-                src_tr.metadata_hash == dst_tr.metadata_hash:
+        # this is some god awful code, but it makes like ugh
+        # problem: output sigs may not be correct because it currently cannot handle duplicates...
+        # solution: move away from using audio signature matching
+        # problem: it's gonna take a bit of re-engineering of the underhood/building...
+        # problem: currently, i think theres no guarantee that it will copy properly...
+
+        check_dst = dst.exists and dst.is_file()
+        check_dst_matches_expected_dst = dst == src_tr.expected_output_path(output_dir)
+        check_src_audio_exists_in_output = src_tr.audio_md5_signature in output_audio_signature_map
+        check_metadata = False
+        if check_src_audio_exists_in_output:
+            dst_tr = output_audio_signature_map[src_tr.audio_md5_signature][1]
+            check_metadata = src_tr.metadata_hash == dst_tr.metadata_hash
+
+        validity = check_dst and check_dst_matches_expected_dst and check_src_audio_exists_in_output and check_metadata
+        if validity:
+            # passed all checks
             continue
-        if dst != src_tr.expected_output_path():
+
+        # failed one or more checks...
+        if not check_dst:
+            logger.error(f"[fs] file not found: {src} ")
+        if not check_dst_matches_expected_dst:
             logger.debug(f"[cmp] mismatch file-path: {src} -> {dst}")
-        elif src_tr.metadata_hash != dst_tr.metadata_hash:
-            logger.debug(f"[cmp] metadata mismatch -> overwrite: {src} -> {dst}")
-        else:
-            logger.info(f"[copy] dst missing -> new copy: {src} -> {dst}")
+        if not check_src_audio_exists_in_output:
+            logger.warning(f"[sanity]: src file should not exist in dst, but yet, does...")
+        if not check_metadata:
+            logger.warning(f"[cmp]: metadata mismatch: {src} -> {dst}")
+
+        logger.info(f"[copy] {src} -> {dst}")
         copy_tasks.append((src, dst, src_tr, False))
         stats["to_copy"] += 1
 
