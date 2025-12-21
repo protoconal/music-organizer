@@ -116,7 +116,7 @@ def perform_sync(
         # problem: it's gonna take a bit of re-engineering of the underhood/building...
         # problem: currently, i think theres no guarantee that it will copy properly...
 
-        check_dst = dst.exists and dst.is_file()
+        check_dst = dst.exists() and dst.is_file()
         check_dst_matches_expected_dst = dst == src_tr.expected_output_path(output_dir)
         check_src_audio_exists_in_output = src_tr.audio_md5_signature in output_audio_signature_map
         check_metadata = False

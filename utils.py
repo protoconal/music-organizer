@@ -17,7 +17,7 @@ import unicodedata
 # ---------- UTILITIES ----------
 
 # ---------- constants ----------
-INVALID_PATH_CHARS = r'\/:*?"<>|.()'
+INVALID_PATH_CHARS = r'\/:*?"<>|.'
 
 # -------- logging utils --------
 logger = logging.getLogger("music_copysync")
