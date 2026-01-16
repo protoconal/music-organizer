@@ -122,9 +122,9 @@ def sanitize_for_path(s: str, max_len: int = 32) -> str:
     s = "".join(ch for ch in s if ch not in INVALID_PATH_CHARS)
     s = re.sub(r"\s{2,}", " ", s).strip()
     # normalize text
-    s = unicodedata.normalize('NFKD', s).encode('ascii', 'ignore').decode('ascii')
+    #s = unicodedata.normalize('NFKD', s).encode('ascii', 'ignore').decode('ascii')
     if len(s) > max_len:
-        s = s[:max_len]
+        s = s[:max_len].strip()
     # logger.debug(f"sanitized path str: {s}")
     return s
 

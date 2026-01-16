@@ -33,6 +33,8 @@ class Track:
         """
         Create Track from path. Use cache (if enabled) to avoid re-reading metadata from disk
         and re-hashing when mtime+size are unchanged.
+
+        Will always write the results back to the cache if available.
         """
         if not path.exists():
             raise FileNotFoundError(path)
@@ -45,19 +47,28 @@ class Track:
         audio_md5_signature = ["0x{unknown signature}"]
 
         # Try cache
-        cached = hash_cache.get_track_metadata_if_valid(path, table) if hash_cache else None
-        if cached:
-            artist = cached["artist"] or artist[0]
-            album = cached["album"] or album[0]
-            title = cached["title"] or title[0]
-            track_number = int(cached["track_number"]) if cached["track_number"] is not None else 0
-            audio_md5_signature = cached["audio_md5_signature"] or audio_md5_signature[0]
+        cache_hit = hash_cache.get_track_metadata_if_valid(path, table) if hash_cache else None
+
+        # somefuckeryishappening with the cache, i dont get it
+        # cache_hit = None
+
+        if cache_hit:
+            artist = cache_hit["artist"] or artist[0]
+            album = cache_hit["album"] or album[0]
+            title = cache_hit["title"] or title[0]
+            track_number = int(cache_hit["track_number"]) if cache_hit["track_number"] is not None else 0
+            audio_md5_signature = cache_hit["audio_md5_signature"] or audio_md5_signature[0]
         else:
             try:
                 audio = FLAC(path)
                 # results are always wrapped in a list, so always unwrap the first result
-                # : priority >>> album_artist, artists, _dflt
-                artist = audio.get("albumartist", audio.get("artist", artist))[0]
+                # : priority >>> artists_tag, album_artist, artist, _dflt
+                if audio.get("ARTISTS"):
+                    artist = audio.get("ARTISTS")[0]
+                    if ";" in artist:
+                        artist = artist.split(";")[0]
+                else:
+                    artist = audio.get("albumartist", audio.get("artist", artist))[0]
                 # : priority >>> album, _dflt
                 album = audio.get("album", album)[0]
                 # : priority >>> title, _dflt
@@ -96,12 +107,14 @@ class Track:
             metadata_hash=compute_list_str_hash(metadata)
         )
 
-        # Update cache
-        try:
-            hash_cache.set(path, table, tr)
-        except Exception as e:
-            logger.error(f"Something bad has happened: {e}")
-            pass
+        # Update cache regardless of cache_hit status
+        # -> slightly inefficient, but will ensure that tables are up-to-date
+        if hash_cache:
+            try:
+                hash_cache.set(path, table, tr)
+            except Exception as e:
+                logger.error(f"Something bad has happened: {e}")
+                pass
 
         return tr
 

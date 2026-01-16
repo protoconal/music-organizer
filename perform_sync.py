@@ -5,6 +5,7 @@ from typing import Dict
 
 from file_sync.HashCache import HashCache
 from file_sync.scanner import build_required_input_maps, build_required_output_maps, scan_output_dir
+from file_sync.track import Track
 from file_sync.utils import file_move, transactional_copy
 
 # external libs
@@ -53,6 +54,8 @@ def perform_sync(
     expected_by_dst: dst_path -> (src_path, Track)
     existing_paths: set of Path
     """
+    skip = False
+
     stats = {
         "to_copy": 0,
         "copied": 0,
@@ -67,42 +70,48 @@ def perform_sync(
     logger.info("| ----- -------------- ----- |")
 
     # load all metadata from input
+
     input_audio_signature_map, expected_path_map = build_required_input_maps(input_dir, output_dir, hash_cache)
     stats["total_in_found"] = len(expected_path_map)
 
     # load all metadata from output
-    output_audio_signature_map = build_required_output_maps(output_dir, hash_cache)
-    stats["total_out_found"] = len(output_audio_signature_map)
+    #output_audio_signature_map = build_required_output_maps(output_dir, hash_cache)
+    #stats["total_out_found"] = len(output_audio_signature_map)
 
     # 0. Delete any duplicates...
 
 
 
     # 1. Determine movable files...
-    move_tasks, skippable_destination_paths = determine_move_tasks(
-        output_dir, input_audio_signature_map, output_audio_signature_map)
+    #move_tasks, skippable_destination_paths = determine_move_tasks(
+    #    output_dir, input_audio_signature_map, output_audio_signature_map)
 
-    for _ in [input_audio_signature_map[x] for x in
-     set(input_audio_signature_map.keys()).difference(set(output_audio_signature_map.keys()))]:
-        logger.info(_)
+    #for _ in [input_audio_signature_map[x] for x in
+     #set(input_audio_signature_map.keys()).difference(set(output_audio_signature_map.keys()))]:
+    #    logger.info(_)
 
     # 1.5 Perform move tasks...
-    it = tqdm(move_tasks, desc="Moving files...", unit="file") if TQDM_AVAILABLE else move_tasks
-    for src, dst, tr in it:
-        file_move(src, dst)
+    #it = tqdm(move_tasks, desc="Moving files...", unit="file") if TQDM_AVAILABLE else move_tasks
+    #for src, dst, tr in it:
+    #    file_move(src, dst)
         # update cache with new information
-        hash_cache.remove(src, "out_cache")
-        hash_cache.set(dst, "out_cache", tr)
-        # update map with new changes
-        # - audio_signature_map: audio_signature -> expected_path_map
-        # - expected_path_map: expected_dst_path -> {origin_path, Track}
-        output_audio_signature_map[tr.audio_md5_signature] = (dst, tr)
+    #    hash_cache.remove(src, "out_cache")
+    #    hash_cache.set(dst, "out_cache", tr)
 
     # 2. Determine new copy tasks...
     # - for each expected dst, decide if we need to copy/overwrite
     logger.info("| ----- --------------- ----- |")
     logger.info("| ----- stage 2: copies ----- |")
     logger.info("| ----- --------------- ----- |")
+
+    #if len(move_tasks) > 0:
+    #    # reload all metadata from input
+    #
+    #    stats["total_in_found"] = len(expected_path_map)
+
+    #    # reload all metadata from output
+    #    output_audio_signature_map = build_required_output_maps(output_dir, hash_cache)
+    #    stats["total_out_found"] = len(output_audio_signature_map)
 
     copy_tasks = []
 
@@ -111,17 +120,20 @@ def perform_sync(
 
     for dst, (src, src_tr) in it:
         # this is some god awful code, but it makes like ugh
+        # should rewrite this into a switch statement
         # problem: output sigs may not be correct because it currently cannot handle duplicates...
         # solution: move away from using audio signature matching
         # problem: it's gonna take a bit of re-engineering of the underhood/building...
         # problem: currently, i think theres no guarantee that it will copy properly...
+        # im so confused as to why it seems like there are... different ways/ Shan
 
         check_dst = dst.exists() and dst.is_file()
         check_dst_matches_expected_dst = dst == src_tr.expected_output_path(output_dir)
-        check_src_audio_exists_in_output = src_tr.audio_md5_signature in output_audio_signature_map
+        #check_src_audio_exists_in_output = src_tr.audio_md5_signature in output_audio_signature_map
+        check_src_audio_exists_in_output = check_dst
         check_metadata = False
         if check_src_audio_exists_in_output:
-            dst_tr = output_audio_signature_map[src_tr.audio_md5_signature][1]
+            dst_tr = Track.from_file(dst, None, None)
             check_metadata = src_tr.metadata_hash == dst_tr.metadata_hash
 
         validity = check_dst and check_dst_matches_expected_dst and check_src_audio_exists_in_output and check_metadata
@@ -131,11 +143,11 @@ def perform_sync(
 
         # failed one or more checks...
         if not check_dst:
-            logger.error(f"[fs] file not found: {src} ")
+            logger.error(f"[dest] file not found: {src} ")
         if not check_dst_matches_expected_dst:
             logger.debug(f"[cmp] mismatch file-path: {src} -> {dst}")
-        if not check_src_audio_exists_in_output:
-            logger.warning(f"[sanity]: src file should not exist in dst, but yet, does...")
+        #if not check_src_audio_exists_in_output:
+        #    logger.warning(f"[sanity]: src file should not exist in dst, but yet, does...")
         if not check_metadata:
             logger.warning(f"[cmp]: metadata mismatch: {src} -> {dst}")
 
@@ -148,18 +160,23 @@ def perform_sync(
     it = tqdm(copy_tasks, desc="Copying...", unit="file") if TQDM_AVAILABLE else copy_tasks
     for task in it:
         src, dst, tr, boolean_to = task
-        transactional_copy(src, dst, dry_run=dry_run)
-        stats["copied"] += 1
-        hash_cache.set(dst, "out_cache", tr)
+        try:
+            transactional_copy(src, dst, dry_run=dry_run)
+            stats["copied"] += 1
+            hash_cache.set(dst, "out_cache", tr)
+        except Exception as e:
+            logger.error(f"{e}")
 
     # Delete any existing file that is not an expected dst
     logger.info("| ----- ----------------- ----- |")
     logger.info("| ----- stage 3: deletion ----- |")
     logger.info("| ----- ----------------- ----- |")
-    existing_paths = scan_output_dir(output_dir, True)
+
+    output_audio_signature_map, existing_paths = build_required_output_maps(output_dir, hash_cache)
+    #existing_paths = scan_output_dir(output_dir, True)
     existing_abs_p = set([str(_) for _ in existing_paths])
     predicted_abs_p = set([str(_) for _ in expected_path_map])
-    logger.info(f"Updated output dir: {len(existing_paths)} files found...")
+    logger.info(f"Updated output dir: {len(existing_abs_p)} files found...")
     logger.info(f"Expecting: {len(predicted_abs_p)} file...")
     #to_delete = [Path(_) for _ in existing_abs_p if _ not in predicted_abs_p]
     to_delete = [Path(_) for _ in existing_abs_p.difference(predicted_abs_p)]

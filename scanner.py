@@ -56,7 +56,6 @@ def scan_output_dir(output_dir: Path, remove_empty_dir: bool) -> set:
     """
     return scan_directory_for_flacs(output_dir, remove_empty_dir)
 
-
 def build_required_input_maps(input_dir: Path, output_dir: Path, hash_cache: HashCache) -> \
         [Dict[Path, Tuple[Path, Track]]]:
     """
@@ -95,11 +94,6 @@ def build_required_input_maps(input_dir: Path, output_dir: Path, hash_cache: Has
 
 def build_required_output_maps(output_dir: Path, hash_cache: HashCache) -> \
         [Dict[Path, Tuple[Path, Track]]]:
-    """
-        Return the required maps...
-        - audio_signature_map: audio_signature -> expected_path_map
-        - expected_path_map: expected_dst_path -> {origin_path, Track}
-    """
     table = "out_cache"
     audio_signature_map: Dict[str, Tuple[Path, Track]] = {}
     output_paths = scan_input_dir(output_dir)
@@ -109,7 +103,7 @@ def build_required_output_maps(output_dir: Path, hash_cache: HashCache) -> \
         try:
             # track should always update the cache...
             tr = Track.from_file(p, hash_cache, table)
-            # map md5 audio hash to path and object
+            # map md5 audio hash to expected_path_map
             if tr.audio_md5_signature in audio_signature_map:
                 print("\n")
                 logger.warning("| ----- --------------- ----- |")
@@ -122,7 +116,7 @@ def build_required_output_maps(output_dir: Path, hash_cache: HashCache) -> \
         except Exception as e:
             logger.error(f"Error processing input file {p}: {e}")
 
-    return audio_signature_map
+    return audio_signature_map, output_paths
 
 
 def duplicate_enabled_build_required_output_maps(output_dir: Path, hash_cache: HashCache):

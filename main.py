@@ -94,7 +94,7 @@ def main():
         # Summary
         logger.info("---- Summary ----")
         logger.info(f"Input FLACs scanned: {stats['total_in_found']}")
-        logger.info(f"Existing output FLACs found: {stats['total_out_found']}")
+        #logger.info(f"Existing output FLACs found: {stats['total_out_found']}")
         logger.info(f"Planned copies: {stats['to_copy']}")
         logger.info(f"Copied (new): {stats['copied']}")
         logger.info(f"Overwritten: {stats['overwritten']}")
