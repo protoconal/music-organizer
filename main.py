@@ -18,9 +18,9 @@ from __future__ import annotations
 import time
 from datetime import datetime
 
-from file_sync.HashCache import HashCache
-from file_sync.perform_sync import perform_sync
-from file_sync.utils import *
+from HashCache import HashCache
+from perform_sync import perform_sync
+from utils import *
 
 # ---------- configuration ----------
 CACHE_FILENAME = "hashcache.sqlite"

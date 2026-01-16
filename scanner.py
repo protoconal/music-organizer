@@ -3,8 +3,8 @@ import os
 from pathlib import Path
 from typing import Dict, Tuple, List
 
-from file_sync.HashCache import HashCache
-from file_sync.track import Track
+from HashCache import HashCache
+from track import Track
 
 # external libs
 try:
