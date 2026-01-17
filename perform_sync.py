@@ -1,12 +1,14 @@
 # ---------- main sync logic ----------
 import logging
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Any, List
 
-from file_sync.HashCache import HashCache
-from file_sync.scanner import build_required_input_maps, build_required_output_maps, scan_output_dir
-from file_sync.track import Track
-from file_sync.utils import file_move, transactional_copy
+from HashCache import HashCache
+from scanner import build_required_input_maps, build_required_output_maps, scan_output_dir, discover_tracks
+from track import Track
+from utils import file_move, transactional_copy
+
+from scanner import scan_directory_for_flacs
 
 # external libs
 try:
@@ -17,10 +19,10 @@ except ModuleNotFoundError:
     TQDM_AVAILABLE = False
 
 # ---------- logging ----------
-logger = logging.getLogger("music_copysync")
+logger = logging.getLogger(__name__)
 
 
-def determine_move_tasks(output_dir, input_audio_signature_map, output_audio_signature_map):
+def old_determine_move_tasks(output_dir, input_audio_signature_map, output_audio_signature_map):
     skippable_destination_paths = set()
     move_tasks = []
     # determine any potential moves by intersecting the input_audio_signatures with the output_audio_signatures
@@ -44,16 +46,85 @@ def determine_move_tasks(output_dir, input_audio_signature_map, output_audio_sig
     logger.info(f"Identified {len(move_tasks)} movable candidates...")
     return move_tasks, skippable_destination_paths
 
+def determine_move_tasks(input_map: Dict[str, List[Track]], output_map: Dict[str, Track], output_dir: Path):
+    # so to determine if a file is an input is movable,
+    # the same md5 hash must exist in both the input and output...
+    # and also share the same meta_hashes
+
+    move_tasks = []
+    # determine intersection
+    in_sigs = set(input_map.keys())
+    out_sigs = set(output_map.keys())
+    movables = in_sigs.intersection(out_sigs)
+
+    # determine the current states
+    for sig in movables:
+        sig_movable = True
+        new_intr = input_map[sig]
+        current_outtr = output_map[sig]
+
+        # ensure that only one track exists per sig
+        if len(input_map) > 1:
+            logger.info(f"Detected one or more duplicates for input signatures, {sig} : see {new_intr}")
+            sig_movable = False
+        if len(output_map) > 1:
+            logger.info(f"Detected one or more duplicates for output signatures, {sig} : see {current_outtr}")
+            sig_movable = False
+
+        # unpack them
+        new_intr = new_intr[0]
+        current_outtr = current_outtr[0]
+
+        current_file_path = current_outtr.abs_path
+        new_file_path = new_intr.expected_output_path(output_dir)
+
+        check_file_path = current_file_path != new_file_path
+        check_metadata = new_intr.metadata_hash == current_outtr.metadata_hash
+        if check_file_path and check_metadata and sig_movable:
+            # track must be movable
+            move_tasks.append(current_outtr)
+    logger.info(f"Identified {len(move_tasks)} movable candidates...")
+    return move_tasks
 
 def perform_sync(
         input_dir: Path,
         output_dir: Path,
         dry_run: bool,
-        hash_cache: HashCache) -> Dict[str, int]:
+        hash_cache: HashCache,
+        config: Dict[str, Any]
+) -> Dict[str, int]:
     """
     expected_by_dst: dst_path -> (src_path, Track)
     existing_paths: set of Path
     """
+
+
+    # scan input for changes
+
+    logger.info("| ----- -------------- ----- |")
+    logger.info("| ----- pre-stage 1: scanning current state ----- |")
+    logger.info("| ----- -------------- ----- |")
+
+    # must scan input and output directories...
+
+    keep_empty_directories = bool(config.get("keep_empty_directories"))
+
+    discovered_input_files, input_tracks, input_audio_to_sigs = discover_tracks(input_dir, hash_cache, "in_cache", keep_empty_directories)
+    discovered_output_files, output_tracks, output_audio_to_sigs = discover_tracks(output_dir, hash_cache, "out_cache", keep_empty_directories)
+
+
+    logger.info("| ----- -------------- ----- |")
+    logger.info("| ----- stage 1: calculating movable items ----- |")
+    logger.info("| ----- -------------- ----- |")
+
+    # to calculate the possible movable items is to determine which audio tags are the same
+    # with the same metadata
+
+    # this step is only useful if there happens to be no meaningful metadata changes
+    # but somehow items are in the wrong place
+
+    movable_tasks = determine_move_tasks(input_audio_to_sigs, output_audio_to_sigs, output_dir)
+
     skip = False
 
     stats = {

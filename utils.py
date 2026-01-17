@@ -10,7 +10,7 @@ import shutil
 import sys
 import tempfile
 from pathlib import Path
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 
 import unicodedata
 
@@ -20,10 +20,10 @@ import unicodedata
 INVALID_PATH_CHARS = r'\/:*?"<>|.'
 
 # -------- logging utils --------
-logger = logging.getLogger("music_copysync")
+logger = logging.getLogger(__name__)
 
 
-def setup_logging(verbosity: int, log_file: Optional[Path]):
+def setup_logging(verbosity: int, log_file: Optional[Path] = None):
     level = logging.WARNING
     if verbosity == 1:
         level = logging.INFO
@@ -36,11 +36,16 @@ def setup_logging(verbosity: int, log_file: Optional[Path]):
 
     logging.basicConfig(
         level=level,
-        format="%(asctime)s [%(levelname)s] %(message)s",
+        format="%(asctime)s [%(name)s] [%(levelname)s] %(message)s",
         datefmt="%H:%M:%S",
         handlers=handlers,
     )
 
+# https://stackoverflow.com/a/61762820
+class PrefixLoggerAdapter(logging.LoggerAdapter):
+    """ A logger adapter that adds a prefix to every message """
+    def process(self, msg: str, kwargs: dict) -> (str, dict):
+        return f'[{self.extra["nickname"]}] ' + msg, kwargs
 
 # ---------- fs helpers ----------
 def transactional_copy(src: Path, dst: Path, dry_run: bool = False) -> None:
@@ -78,44 +83,87 @@ def file_move(src: Path, dst: Path, dry_run: bool = False) -> None:
 
 
 # ---------- hashing helpers ----------
-def compute_file_hash(path: Path, algo: str = "md5", chunk_size: int = 8192) -> str:
-    """Compute full-file hash hex digest (lowercase) using provided algo"""
-    h = _select_hashing_algo(algo)
-    # Source - https://stackoverflow.com/a/59056837
-    # Posted by user3064538, modified by community.
-    # Retrieved 2025-12-10, License - CC BY-SA 4.0
-    with path.open("rb") as f:
-        while chunk := f.read(chunk_size):
-            h.update(chunk)
-    hash_str = h.hexdigest().lower()
-    # logger.debug(f"computed {algo} hash for {path}: {hash_str}")
-    return hash_str
+class HashingHelper(object):
+    _instance = None
+    _initialized = False
+    hashing_instance: hashlib
+    algorithm: str
+    DEBUG: bool
 
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
 
-def compute_list_str_hash(input_buffer: [str], algo: str = "blake3") -> str:
-    """Compute string list hash hex digest (lowercase) using provided algo."""
-    h = _select_hashing_algo(algo)
-    for s in input_buffer:
-        h.update(s.encode("utf-8"))
-    hash_str = h.hexdigest().lower()
-    # logger.debug(f"computed {algo} hash for {input_buffer}: {hash_str}")
-    return hash_str
+    def __init__(self, algorithm = None):
+        if self._initialized:
+            return
+        self._initialized = True
 
+        self.DEBUG = False
 
-def _select_hashing_algo(algo: str):
-    # normalize string, just in case
-    algo = algo.lower()
-    # default to md5
-    h = hashlib.md5()
-    # select algorithm
-    if algo == "blake3":
-        try:
-            import blake3
-            h = blake3.blake3()
-        except ModuleNotFoundError:
-            logger.error("non-fatal, 'blake3' not installed. Install with: pip install blake3")
-    return h
+        # select_hashing_provider
+        algorithm = "md5" if algorithm is None else algorithm.lower()
+        # save name
+        self.algorithm = algorithm
+        # select default algo
+        if algorithm == "md5":
+            self.hashing_instance = hashlib.md5()
+        elif algorithm == "sha256":
+            self.hashing_instance = hashlib.sha256()
+        elif algorithm == "blake3":
+            try:
+                import blake3
+                self.hashing_instance = blake3.blake3()
+            except ModuleNotFoundError:
+                logger.error("non-fatal, 'blake3' not installed. Install with: pip install blake3")
 
+    def _new_hasher_instance(self):
+        return self.hashing_instance.copy()
+
+    def _normalize_to_str(self, hashing_provider: hashlib) -> str:
+        hash_str = hashing_provider.hexdigest().lower()
+        return hash_str
+
+    def hash_file(self, path: Path, chunk_size: int = 8192) -> str:
+        """Return a file's hash in string hex digest format normalized to lowercase"""
+        h = self._new_hasher_instance()
+        # Source - https://stackoverflow.com/a/59056837
+        # Posted by user3064538, modified by community.
+        # Retrieved 2025-12-10, License - CC BY-SA 4.0
+        with path.open("rb") as f:
+            while chunk := f.read(chunk_size):
+                h.update(chunk)
+        hash_str = self._normalize_to_str(h)
+        if self.DEBUG:
+            logger.debug(f"Computed {self.algorithm} hash for file {path}: {hash_str}")
+        return hash_str
+
+    def hash_str_list(self, input_buffer: List[str]) -> str:
+        """ Return a hash of stringified items in normalized hexadecimal string format (without 0x)."""
+        h = self._new_hasher_instance()
+        for s in input_buffer:
+            h.update(str(s).encode("utf-8"))
+        hash_str = self._normalize_to_str(h)
+        if self.DEBUG:
+            logger.debug(f"Computed {self.algorithm} hash for {input_buffer}: {hash_str}")
+        return hash_str
+
+    def hash_dict_vals(self, input_dict: Dict[str, str], keys: Optional[List[str]]) -> str:
+        """ Return the hash of a dictionary's sorted values in normalized hexadecimal string format (without 0x).
+            If any keys are provided, the order of the keys is preserved.
+        """
+        if keys:
+            hash_vals = []
+            # theoretically, the for_loop should keep them order of the keys
+            for k in keys:
+                if k not in input_dict:
+                    logger.error(f"Provided key: {k} does not exist in input dictionary.")
+                hash_vals.append(input_dict.get(k, ""))
+        else:
+            hash_vals = [str(_) for _ in input_dict.values()]
+            hash_vals.sort()
+        return self.hash_str_list(hash_vals)
 
 def sanitize_for_path(s: str, max_len: int = 32) -> str:
     # GPT-generated
