@@ -12,8 +12,6 @@ import tempfile
 from pathlib import Path
 from typing import Optional, Dict, List
 
-import unicodedata
-
 # ---------- UTILITIES ----------
 
 # ---------- constants ----------

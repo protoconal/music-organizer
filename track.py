@@ -27,7 +27,7 @@ class Track:
     artist: str
     album: str
     track_number: int
-    metadata_hash: str # hash result of above information
+    metadata_hash: str # hash result of previous information
     md5_audsig: str # embedded md5 hash in flac
 
 
@@ -76,7 +76,7 @@ class Track:
         Use cache (if enabled) to avoid re-reading metadata from disk and re-hashing when
         mtime+size are unchanged.
 
-        Will fallback to a clean read if anything goes wrong with the cache.
+        Will fall back to a clean read if anything goes wrong with the cache.
         """
         result = hash_cache.get_track_metadata_if_unchanged_mtime_size(file_path, table)
         if result:
@@ -89,7 +89,7 @@ class Track:
     @classmethod
     def from_file(cls, file_path: Union[Path, str], hash_cache: HashCache, table: str) -> Optional["Track"]:
         """
-        Create Track from the provided path, if the path is relative, it will attempt to resolve it.
+        Create a Track from the provided path, if the path is relative, it will attempt to resolve it.
         Will always write the results back to the cache if provided and enabled...
         """
         # try to resolve the path
@@ -105,7 +105,7 @@ class Track:
         try:
             audio = FLAC(abs_path)
             # results are always wrapped in a list, so always unwrap the first result
-            # : priority >>> first_in_artists_tag, album_artist, artist, _dflt
+            # |: priority >>> first_in_artists_tag, album_artist, artist, _dflt
             if audio.get("ARTISTS"):
                 artist = audio.get("ARTISTS")[0]
                 if ";" in artist:
@@ -113,13 +113,13 @@ class Track:
             else:
                 artist = audio.get("albumartist", audio.get("artist", [None]))[0]
             logger.debug(f"Determined albumartist to be: {artist} for {abs_path}")
-            # : priority >>> album, _dflt
+            # |: priority >>> album, _dflt
             album = audio.get("album", [None])[0]
-            # : priority >>> title, _dflt
+            # |: priority >>> title, _dflt
             title = audio.get("title", [None])[0]
-            # : priority >>> track_number, _dflt
+            # |: priority >>> track_number, _dflt
             track_number = audio.get("tracknumber", [None])[0]
-            # : priority >>> md5_signature, _dflt
+            # |: priority >>> md5_signature, _dflt
             # type is seemingly guaranteed by StreamInfo
             int_md5_signature = audio.info.md5_signature if audio.info.md5_signature else 0
             audio_md5_signature = hex(int_md5_signature)

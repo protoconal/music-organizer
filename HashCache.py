@@ -5,12 +5,23 @@ import threading
 from pathlib import Path
 from typing import Optional, Any
 
-from utils import PrefixLoggerAdapter
-
 # ---------- logging ----------
 logger = logging.getLogger(__name__)
 
 # ---------- HashCache ----------
+def _stat_file(_file_path: Path):
+    # try to resolve the path
+    try:
+        _file_path = Path(_file_path).resolve()
+    except FileNotFoundError as e:
+        logger.error(f"Unable to resolve path, file not found: {e}")
+        return None
+    except RuntimeError as e:
+        logger.error(f"Unable to resolve path, infinite loop: {e}")
+        return None
+    return _file_path, _file_path.stat()
+
+
 class HashCache:
     """
     SQLite-backed cache stored at <output_dir>/<cache_filename>
@@ -67,7 +78,7 @@ class HashCache:
                 );""" ))
                 # create index for table
                 conn.execute(str(f"CREATE INDEX IF NOT EXISTS {_}_hash_idx ON {_}(audio_md5_signature);"))
-                # lets hope that explicitly casting it as a str does the replacement before it attempts to run
+                # let's hope that explicitly casting it as a str does the replacement before it attempts to run
             conn.commit()
         except Exception as e:
             logger.error(f"Something horrible has happened during DB connection: {e}")
@@ -76,18 +87,6 @@ class HashCache:
         # return
         self._conn = conn
         return conn
-
-    def _stat_file(self, _file_path: Path):
-        # try to resolve the path
-        try:
-            _file_path = Path(_file_path).resolve()
-        except FileNotFoundError as e:
-            logger.error(f"Unable to resolve path, file not found: {e}")
-            return None
-        except RuntimeError as e:
-            logger.error(f"Unable to resolve path, infinite loop: {e}")
-            return None
-        return (_file_path, _file_path.stat())
 
     def is_disabled(self):
         if self._disabled:
@@ -113,14 +112,14 @@ class HashCache:
     def get_track_metadata_if_unchanged_mtime_size(self, src: Path, table: str) -> Optional[dict]:
         """
             Return cached Track metadata if exists and if cache entry matches mtime+size; else None.
-                Will automatically resolve provided path to an absolute path.
+                Will automatically resolve the provided path to an absolute path.
         """
         if self.is_disabled() or self.is_table_invalid(table):
-            # HashCache is disabled, or we provided with an invalid table...
+            # HashCache is disabled, or we provided an invalid table...
             return None
 
         # preps file path and statistics
-        src, st = self._stat_file(src)
+        src, st = _stat_file(src)
         logger.debug(f"Attempting metadata retrieval from cache for {src} from table {table}")
 
         try:
@@ -161,7 +160,7 @@ class HashCache:
             return False
 
         # TODO: refactor this so it makes more sense
-        src, st = self._stat_file(src)
+        src, st = _stat_file(src)
         # if it returns nothing, we know to fail
         if not st:
             logger.error("Failed to read filesystem information for track: {track}")

@@ -3,13 +3,11 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, List
 
-import track
 from HashCache import HashCache
-from scanner import build_required_input_maps, build_required_output_maps, scan_output_dir, discover_tracks
+from scanner import discover_tracks
+from scanner import scan_directory_for_flacs
 from track import Track
 from utils import file_move, transactional_copy
-
-from scanner import scan_directory_for_flacs
 
 # external libs
 try:
@@ -23,7 +21,7 @@ except ModuleNotFoundError:
 logger = logging.getLogger(__name__)
 
 
-def determine_move_tasks(input_map: Dict[str, List[Track]], output_map: Dict[str, Track], output_dir: Path):
+def determine_move_tasks(input_map: Dict[str, List[Track]], output_map: Dict[str, List[Track]], output_dir: Path):
     # so to determine if a file is an input is movable,
     # the same md5 hash must exist in both the input and output...
     # and also share the same meta_hashes
@@ -145,7 +143,7 @@ def perform_sync(
         if predicted_abs_path.exists():
             # we likely scanned it on the entry
             src_tr_audsig = src_tr.md5_audsig
-            # lets see if we can find it via audio_sig
+            # let's see if we can find it via audio_sig
             if src_tr_audsig in output_audio_to_sigs:
                 matches = output_audio_to_sigs[src_tr_audsig]
                 out_tr = None

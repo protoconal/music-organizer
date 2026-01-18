@@ -1,17 +1,6 @@
 #!/usr/bin/env python3
 """
 full_copy_sync.py — copy-sync FLAC files into a metadata-organized output,
-using BLAKE3 for full-file hashing and a SQLite-backed destination-only cache.
-
-Features:
- - Full-file BLAKE3 hashing (fast + secure).
- - SQLite cache stored at <output_dir>/.hashcache.sqlite containing:
-     - cache (destination file cache)
-     - input_cache (input file metadata + hash)
- - Input-side caching (mtime+size) to speed rescans; can be disabled with --no-input-cache.
- - --full-rebuild : strict verification mode that re-hashes every input and every output,
-                    updates caches, reports mismatches, and performs no copying/deleting.
- - Transactional copy mode (atomic replace), threaded copying, dry-run, progress bars.
 """
 from __future__ import annotations
 
