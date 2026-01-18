@@ -61,7 +61,6 @@ class HashCache:
             conn = sqlite3.connect(self.db_path, timeout=15)
             conn.execute("PRAGMA journal_mode=WAL;")
             conn.execute("PRAGMA synchronous=NORMAL;")
-            # TODO: test if this actually works
             for _ in self.VALID_TABLES:
                 # create table
                 conn.execute(str(f"""
@@ -159,7 +158,6 @@ class HashCache:
         if self.is_disabled() or self.is_table_invalid(table):
             return False
 
-        # TODO: refactor this so it makes more sense
         src, st = _stat_file(src)
         # if it returns nothing, we know to fail
         if not st:

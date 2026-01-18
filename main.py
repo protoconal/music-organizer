@@ -60,19 +60,17 @@ def main():
     args = parser.parse_args()
 
     config = load_config_file(args.config)
-    merged = merge_config_with_args(config, args, parser)
+    config = merge_config_with_args(config, args, parser)
 
     if args.save_config:
-        save_config_file(args.config, merged)
+        save_config_file(args.config, config)
 
-    input_dir = Path(merged.get("input"))
-    output_dir = Path(merged.get("output"))
-    dry_run = bool(merged.get("dry_run"))
-    verbosity = int(merged.get("verbosity"))
-    log_file = Path(merged.get("log_file"))
-    hash_length = int(merged.get("hash_length"))
-    disable_cache = bool(merged.get("disable_cache"))
-    keep_empty_directories = bool(merged.get("keep_empty_directories"))
+    input_dir = Path(config.get("input"))
+    output_dir = Path(config.get("output"))
+    dry_run = bool(config.get("dry_run"))
+    verbosity = int(config.get("verbosity"))
+    log_file = Path(config.get("log_file"))
+    disable_cache = bool(config.get("disable_cache"))
 
     setup_logging(verbosity, log_file)
 
@@ -90,7 +88,7 @@ def main():
             output_dir=output_dir,
             dry_run=dry_run,
             hash_cache=hash_cache,
-            config=merged
+            config=config
         )
 
         elapsed = time.time() - start

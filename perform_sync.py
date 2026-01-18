@@ -21,7 +21,8 @@ except ModuleNotFoundError:
 logger = logging.getLogger(__name__)
 
 
-def determine_move_tasks(input_map: Dict[str, List[Track]], output_map: Dict[str, List[Track]], output_dir: Path):
+def determine_move_tasks(input_map: Dict[str, List[Track]], output_map: Dict[str, List[Track]],
+                         output_dir: Path, hash_length: int):
     # so to determine if a file is an input is movable,
     # the same md5 hash must exist in both the input and output...
     # and also share the same meta_hashes
@@ -51,7 +52,7 @@ def determine_move_tasks(input_map: Dict[str, List[Track]], output_map: Dict[str
         current_outtr = current_outtr[0]
 
         current_file_path = current_outtr.abs_path
-        new_file_path = new_intr.expected_output_path(output_dir)
+        new_file_path = new_intr.expected_output_path(output_dir, hash_length)
 
         check_file_path = current_file_path != new_file_path
         check_metadata = new_intr.metadata_hash == current_outtr.metadata_hash
@@ -106,7 +107,7 @@ def perform_sync(
     # this step is only useful if there happens to be no meaningful metadata changes,
     # but somehow items are in the wrong place
 
-    movable_tasks = determine_move_tasks(input_audio_to_sigs, output_audio_to_sigs, output_dir)
+    movable_tasks = determine_move_tasks(input_audio_to_sigs, output_audio_to_sigs, output_dir, config["hash_length"])
 
     logger.info("| ----- ---------------- ----- |")
     logger.info("| ----- stage 1.5: moves ----- |")
@@ -137,7 +138,7 @@ def perform_sync(
     it_input_tracks = tqdm(input_tracks, desc="Determining required copies...", unit="file") if TQDM_AVAILABLE else input_tracks
     for src_tr in it_input_tracks:
         in_abs_path = src_tr.abs_path
-        predicted_abs_path = src_tr.expected_output_path(output_dir)
+        predicted_abs_path = src_tr.expected_output_path(output_dir, config["hash_length"])
 
         # check if it exists
         if predicted_abs_path.exists():
@@ -182,7 +183,7 @@ def perform_sync(
     logger.info("| ----- ----------------- ----- |")
 
     output_existing_abs_paths = scan_directory_for_flacs(output_dir, keep_empty_directories)
-    predicted_abs_p = set([_.expected_output_path(output_dir) for _ in input_tracks])
+    predicted_abs_p = set([_.expected_output_path(output_dir, config["hash_length"]) for _ in input_tracks])
 
     logger.info(f"Updated output dir: {len(output_existing_abs_paths)} files found...")
     logger.info(f"Expecting: {len(predicted_abs_p)} files...")

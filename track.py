@@ -150,14 +150,12 @@ class Track:
     def md5_audsig_tag(self, length: int = 4) -> str:
         return self.md5_audsig[:length]
 
-    def expected_output_path(self, base_output: Path) -> Path:
+    def expected_output_path(self, base_output: Path, length: int = 4) -> Path:
         safe_artist = sanitize_for_path(self.artist)
         safe_album = sanitize_for_path(self.album)
-        filename = f"{sanitize_for_path(self.title)}-{self.md5_audsig_tag()}.flac"
+        filename = f"{sanitize_for_path(self.title)}-{self.md5_audsig_tag(length)}.flac"
         expected_path = base_output / safe_artist / safe_album / filename
         return expected_path.resolve()
 
     def human_readable(self):
         return f"_{self.title}-{self.album}.{self.artist}_"
-
-    # TODO: config different output paths
