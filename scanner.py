@@ -37,7 +37,8 @@ def scan_directory_for_flacs(directory: Path, remove_empty_dir: bool = True) -> 
             p.rmdir()
         for f in files:
             if f.lower().endswith(".flac"):
-                flac_paths.add(Path(root) / f)
+                fpath = Path(root) / f
+                flac_paths.add(fpath.resolve())
 
     logger.info(f"Discovered {len(flac_paths)} FLACs in {directory}")
     return flac_paths

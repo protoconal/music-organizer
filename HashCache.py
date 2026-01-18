@@ -161,7 +161,7 @@ class HashCache:
             return False
 
         # TODO: refactor this so it makes more sense
-        st = self._stat_file(src)
+        src, st = self._stat_file(src)
         # if it returns nothing, we know to fail
         if not st:
             logger.error("Failed to read filesystem information for track: {track}")
@@ -201,9 +201,10 @@ class HashCache:
                     ),
                 )
                 conn.commit()
+                logger.debug(f"SET: Successfully set track info table '{table}' for {src}")
                 return True
         except Exception as e:
-            logger.debug(f"SET: Error setting track information in table '{table}' for {src}: {e}")
+            logger.debug(f"ERROR: SET: Error setting track information in table '{table}' for {src}: {e}")
         return False
 
     def remove(self, src: Path, table: str):

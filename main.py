@@ -108,11 +108,10 @@ def main():
 
         # Summary
         logger.info("---- Summary ----")
-        logger.info(f"Input FLACs scanned: {stats['total_in_found']}")
-        #logger.info(f"Existing output FLACs found: {stats['total_out_found']}")
+        logger.info(f"Input FLACs scanned: {stats['total_inputs_found']}")
+        logger.info(f"Output FLACs scanned: {stats['total_outputs_found']}")
         logger.info(f"Planned copies: {stats['to_copy']}")
-        logger.info(f"Copied (new): {stats['copied']}")
-        logger.info(f"Overwritten: {stats['overwritten']}")
+        logger.info(f"Copied/overwritten : {stats['copied']}")
         logger.info(f"Deleted: {stats['deleted']}")
         logger.info(f"Skipped (already up-to-date): {stats['skipped']}")
         logger.info(f"Errors: {stats['errors']}")
