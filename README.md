@@ -235,29 +235,17 @@ python full_copy_sync.py -C --skip-input-caching
 
 The output folder structure is built from FLAC tags such as:
 
-* Artist
-* Album
-* Album Artist
-* Title
-* Track number
-* Year / Date
-
-Exact structure depends on your implementation (e.g., `Artist/Album/01 - Title.flac`).
+* Artist / Album
 
 ---
 
-## Safety
+## TODO:
 
-This tool reorganizes files by **copying**, meaning:
-
-✅ Original files remain untouched
-✅ Output is safe to delete/regenerate
-⚠️ Requires enough disk space for the duplicate library
-
+- implement custom / `%artist%. %title%` formatting strings
+  - refactor codebase so that i use a library and i dont implement it myself
+- check if multiple of the snippets of code can be just like removed
+- run / battle test this,
+  - add so much more debugging / logging and implement custom trace levels
+- but it should work theoretically.
+- write tests.
 ---
-
-If you want, I can also generate:
-
-* a sample `fullcopy_config.json` template
-* a README section describing the exact folder naming rules (if you paste that part of the code)
-* a “Troubleshooting” + “FAQ” section (permissions, missing metadata, duplicates, etc.)
